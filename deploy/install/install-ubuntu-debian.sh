@@ -30,10 +30,12 @@ ADMIN_IP_WHITELIST="${ADMIN_IP_WHITELIST:-}"
 WIREGUARD_MSI_FILE_NAME="${WIREGUARD_MSI_FILE_NAME:-wireguard-amd64-1.1.msi}"
 WIREGUARD_MSI_SHA256="${WIREGUARD_MSI_SHA256:-6DAA5D37A9E2950DFB8C48B95AB8E562CB2BAD1C785D020F38F97BEA4C6A5566}"
 WIREGUARD_MSI_SOURCE="${WIREGUARD_MSI_SOURCE:-https://download.wireguard.com/windows-client/wireguard-amd64-1.1.msi}"
+WIREGUARD_MSI_REQUIRED="${WIREGUARD_MSI_REQUIRED:-false}"
 ENABLE_WG_QUICK="${ENABLE_WG_QUICK:-true}"
 ENABLE_SYSTEMD="${ENABLE_SYSTEMD:-true}"
 REQUIRED_NODE_MAJOR="${REQUIRED_NODE_MAJOR:-18}"
 SESSION_COOKIE_SECURE="${SESSION_COOKIE_SECURE:-}"
+WIREGUARD_MSI_AVAILABLE=false
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -189,20 +191,56 @@ install_wireguard_msi() {
     local target="$INSTALLERS_DIR/$WIREGUARD_MSI_FILE_NAME"
     local tmp
     tmp="$(mktemp)"
+    if [[ -f "$target" ]]; then
+        local cached_actual
+        cached_actual="$(sha256sum "$target" | awk '{print toupper($1)}')"
+        if [[ "$cached_actual" == "$WIREGUARD_MSI_SHA256" ]]; then
+            WIREGUARD_MSI_AVAILABLE=true
+            rm -f "$tmp"
+            log "Using cached fixed WireGuard Windows MSI"
+            return
+        fi
+        log "Ignoring cached WireGuard MSI with SHA256 mismatch: $target"
+    fi
+
     if [[ "$WIREGUARD_MSI_SOURCE" =~ ^https?:// ]]; then
-        curl -fsSL "$WIREGUARD_MSI_SOURCE" -o "$tmp"
+        if ! curl -fsSL --connect-timeout 15 --max-time 120 "$WIREGUARD_MSI_SOURCE" -o "$tmp"; then
+            rm -f "$tmp"
+            if [[ "$WIREGUARD_MSI_REQUIRED" == "true" ]]; then
+                printf 'WireGuard MSI download failed and WIREGUARD_MSI_REQUIRED=true.\n' >&2
+                exit 1
+            fi
+            log "WireGuard MSI unavailable; continuing with fake installer builder until MSI is supplied"
+            WIREGUARD_MSI_AVAILABLE=false
+            return
+        fi
     else
-        cp "$WIREGUARD_MSI_SOURCE" "$tmp"
+        if ! cp "$WIREGUARD_MSI_SOURCE" "$tmp"; then
+            rm -f "$tmp"
+            if [[ "$WIREGUARD_MSI_REQUIRED" == "true" ]]; then
+                printf 'WireGuard MSI source copy failed and WIREGUARD_MSI_REQUIRED=true: %s\n' "$WIREGUARD_MSI_SOURCE" >&2
+                exit 1
+            fi
+            log "WireGuard MSI source unavailable; continuing with fake installer builder until MSI is supplied"
+            WIREGUARD_MSI_AVAILABLE=false
+            return
+        fi
     fi
     local actual
     actual="$(sha256sum "$tmp" | awk '{print toupper($1)}')"
     if [[ "$actual" != "$WIREGUARD_MSI_SHA256" ]]; then
         rm -f "$tmp"
-        printf 'WireGuard MSI SHA256 mismatch. expected=%s actual=%s\n' "$WIREGUARD_MSI_SHA256" "$actual" >&2
-        exit 1
+        if [[ "$WIREGUARD_MSI_REQUIRED" == "true" ]]; then
+            printf 'WireGuard MSI SHA256 mismatch. expected=%s actual=%s\n' "$WIREGUARD_MSI_SHA256" "$actual" >&2
+            exit 1
+        fi
+        log "WireGuard MSI SHA256 mismatch; continuing with fake installer builder until MSI is supplied"
+        WIREGUARD_MSI_AVAILABLE=false
+        return
     fi
     install -m 0640 -o root -g "$SERVICE_GROUP" "$tmp" "$target"
     rm -f "$tmp"
+    WIREGUARD_MSI_AVAILABLE=true
 }
 
 wireguard_address() {
@@ -217,7 +255,19 @@ PY
 
 write_env_file() {
     local server_public_key
+    local fake_builder_enabled
+    local installer_builder_mode
+    local wireguard_msi_path
     server_public_key="$(tr -d '\n' <"$CONFIG_DIR/$WG_INTERFACE.public.key")"
+    if [[ "$WIREGUARD_MSI_AVAILABLE" == "true" ]]; then
+        fake_builder_enabled=false
+        installer_builder_mode=self_pack
+        wireguard_msi_path="$INSTALLERS_DIR/$WIREGUARD_MSI_FILE_NAME"
+    else
+        fake_builder_enabled=true
+        installer_builder_mode=fake
+        wireguard_msi_path=
+    fi
     if [[ -z "$SESSION_COOKIE_SECURE" ]]; then
         case "$PUBLIC_BASE_URL" in
             https://*) SESSION_COOKIE_SECURE=true ;;
@@ -258,9 +308,9 @@ YOURVPN_VPN_CIDR=$VPN_CIDR
 YOURVPN_VPN_SERVER_IP=$VPN_SERVER_IP
 YOURVPN_INSTALL_PACKAGE_DOWNLOAD_WINDOW_MINUTES=120
 YOURVPN_INSTALL_PACKAGE_MAX_DOWNLOAD_ATTEMPTS=5
-YOURVPN_FAKE_BUILDER_ENABLED=false
-YOURVPN_INSTALLER_BUILDER_MODE=self_pack
-YOURVPN_WIREGUARD_MSI_PATH=$INSTALLERS_DIR/$WIREGUARD_MSI_FILE_NAME
+YOURVPN_FAKE_BUILDER_ENABLED=$fake_builder_enabled
+YOURVPN_INSTALLER_BUILDER_MODE=$installer_builder_mode
+YOURVPN_WIREGUARD_MSI_PATH=$wireguard_msi_path
 YOURVPN_WIREGUARD_MSI_SHA256=$WIREGUARD_MSI_SHA256
 YOURVPN_WIREGUARD_INSTALLER_VERSION=1.1
 YOURVPN_WIREGUARD_SERVER_PUBLIC_KEY=$server_public_key
@@ -358,7 +408,7 @@ main() {
     log "Initializing master key and WireGuard keys"
     init_master_key
     init_wireguard_keys
-    log "Installing fixed WireGuard Windows MSI"
+    log "Preparing fixed WireGuard Windows MSI"
     install_wireguard_msi
     log "Writing environment file"
     write_env_file

@@ -69,6 +69,11 @@ def test_install_script_covers_m9_installation_steps() -> None:
     assert "wg genkey" in script
     assert "wg-quick@$WG_INTERFACE.service" in script
     assert "WIREGUARD_MSI_SHA256" in script
+    assert "WIREGUARD_MSI_REQUIRED" in script
+    assert "--connect-timeout 15 --max-time 120" in script
+    assert "continuing with fake installer builder until MSI is supplied" in script
+    assert "YOURVPN_FAKE_BUILDER_ENABLED=$fake_builder_enabled" in script
+    assert "YOURVPN_INSTALLER_BUILDER_MODE=$installer_builder_mode" in script
     assert "sha256sum" in script
     assert "npm run build" in script
     assert "wireportal-api.service" in script

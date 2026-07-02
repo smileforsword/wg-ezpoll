@@ -60,6 +60,8 @@ sudo WIREGUARD_MSI_SOURCE=/srv/installers/wireguard-amd64-1.1.msi \
   bash deploy/install/install-ubuntu-debian.sh
 ```
 
+If the fixed MSI cannot be downloaded during install, M10 may continue with the portal services running and `YOURVPN_INSTALLER_BUILDER_MODE=fake`. Treat that as a temporary degraded state: real Windows package acceptance remains blocked until the MSI is supplied and the builder is switched back to `self_pack`.
+
 If TLS is terminated at this Nginx host or an upstream proxy and `PUBLIC_BASE_URL` starts with `https://`, the installer should write:
 
 ```text

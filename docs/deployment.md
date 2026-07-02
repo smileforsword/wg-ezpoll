@@ -261,7 +261,19 @@ curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.sh | sudo e
 
 The bootstrap script prompts for the public domain or server public IP, public Web base URL, WireGuard endpoint, and admin IP whitelist CIDR. Set any of `SERVER_NAME`, `PUBLIC_BASE_URL`, `WIREGUARD_ENDPOINT`, or `ADMIN_IP_WHITELIST` in the environment to skip that prompt.
 
-The installer defaults `WIREGUARD_MSI_SOURCE` to the fixed official MSI URL and verifies SHA256 before caching it. For offline or internal deployments, provide a local file:
+The installer defaults `WIREGUARD_MSI_SOURCE` to the fixed official MSI URL and verifies SHA256 before caching it. If that URL is unavailable, the portal installation continues and temporarily uses the fake installer builder. In that state the Web/API/Worker/wg-agent services can run, but user Windows packages are placeholders until the fixed MSI is supplied.
+
+To require the MSI during install, set:
+
+```bash
+sudo WIREGUARD_MSI_REQUIRED=true \
+  SERVER_NAME=vpn.example.com \
+  PUBLIC_BASE_URL=https://vpn.example.com \
+  WIREGUARD_ENDPOINT=vpn.example.com:51820 \
+  bash deploy/install/install-ubuntu-debian.sh
+```
+
+For offline or internal deployments, provide a local file:
 
 ```bash
 sudo WIREGUARD_MSI_SOURCE=/srv/installers/wireguard-amd64-1.1.msi \
@@ -269,6 +281,20 @@ sudo WIREGUARD_MSI_SOURCE=/srv/installers/wireguard-amd64-1.1.msi \
   PUBLIC_BASE_URL=https://vpn.example.com \
   WIREGUARD_ENDPOINT=vpn.example.com:51820 \
   bash deploy/install/install-ubuntu-debian.sh
+```
+
+After adding the MSI later, edit `/etc/yourvpn/yourvpn.env` and set:
+
+```text
+YOURVPN_FAKE_BUILDER_ENABLED=false
+YOURVPN_INSTALLER_BUILDER_MODE=self_pack
+YOURVPN_WIREGUARD_MSI_PATH=/var/lib/yourvpn/installers/wireguard-amd64-1.1.msi
+```
+
+Then restart:
+
+```bash
+sudo systemctl restart wireportal-worker wireportal-api
 ```
 
 The fixed MSI hash remains:
