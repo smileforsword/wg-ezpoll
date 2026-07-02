@@ -57,6 +57,21 @@ def test_sqlite_alembic_upgrade_creates_schema(tmp_path: Path) -> None:
     assert {"ix_jobs_status_run_after", "ix_jobs_locked_at"}.issubset(indexes)
 
 
+def test_alembic_config_resolves_migrations_from_config_path(tmp_path: Path, monkeypatch) -> None:
+    db_path = tmp_path / "m2-other-cwd.sqlite3"
+    other_cwd = tmp_path / "other-cwd"
+    other_cwd.mkdir()
+    monkeypatch.chdir(other_cwd)
+
+    cfg = Config(str(Path(__file__).resolve().parents[2] / "alembic.ini"))
+    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path.as_posix()}")
+
+    command.upgrade(cfg, "head")
+
+    engine = create_engine(f"sqlite:///{db_path.as_posix()}", future=True)
+    assert set(inspect(engine).get_table_names()) == EXPECTED_TABLES
+
+
 def test_mysql_ddl_compiles_for_schema() -> None:
     dialect = mysql.dialect()
 

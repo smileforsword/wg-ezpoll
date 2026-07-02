@@ -70,7 +70,7 @@ def test_install_script_covers_m9_installation_steps() -> None:
     assert "wg-quick@$WG_INTERFACE.service" in script
     assert "WIREGUARD_MSI_SHA256" in script
     assert "WIREGUARD_MSI_REQUIRED" in script
-    assert "--connect-timeout 15 --max-time 120" in script
+    assert "--connect-timeout 5 --speed-time 20 --speed-limit 1 --max-time 20" in script
     assert "continuing with fake installer builder until MSI is supplied" in script
     assert "YOURVPN_FAKE_BUILDER_ENABLED=$fake_builder_enabled" in script
     assert "YOURVPN_INSTALLER_BUILDER_MODE=$installer_builder_mode" in script

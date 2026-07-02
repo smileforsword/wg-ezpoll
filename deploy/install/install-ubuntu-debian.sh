@@ -204,7 +204,7 @@ install_wireguard_msi() {
     fi
 
     if [[ "$WIREGUARD_MSI_SOURCE" =~ ^https?:// ]]; then
-        if ! curl -fsSL --connect-timeout 15 --max-time 120 "$WIREGUARD_MSI_SOURCE" -o "$tmp"; then
+        if ! curl -fsSL --connect-timeout 5 --speed-time 20 --speed-limit 1 --max-time 20 "$WIREGUARD_MSI_SOURCE" -o "$tmp"; then
             rm -f "$tmp"
             if [[ "$WIREGUARD_MSI_REQUIRED" == "true" ]]; then
                 printf 'WireGuard MSI download failed and WIREGUARD_MSI_REQUIRED=true.\n' >&2
