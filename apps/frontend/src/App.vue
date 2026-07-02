@@ -153,6 +153,7 @@ const adminDevices = ref<AdminDevice[]>([])
 const auditLogs = ref<AuditLog[]>([])
 const runtimeHealth = ref<RuntimeHealth | null>(null)
 const setupUrl = ref('')
+const routeViews = new Set<View>(['setup', 'apply', 'login', 'password', 'portal', 'admin'])
 
 const applyForm = reactive({
   email: '',
@@ -520,6 +521,21 @@ async function createAccessGroup() {
   })
 }
 
+function viewFromRouteName(routeName: string): View | null {
+  return routeViews.has(routeName as View) ? routeName as View : null
+}
+
+function viewFromPath(pathname: string): View | null {
+  const firstSegment = pathname.replace(/^\/+|\/+$/g, '').split('/')[0] ?? ''
+  if (!firstSegment) {
+    return null
+  }
+  if (firstSegment === 'password') {
+    return 'password'
+  }
+  return viewFromRouteName(firstSegment)
+}
+
 onMounted(() => {
   const params = new URLSearchParams(window.location.search)
   const token = params.get('token')
@@ -529,8 +545,14 @@ onMounted(() => {
     return
   }
   const hash = window.location.hash.replace('#', '')
-  if (['setup', 'apply', 'login', 'password', 'portal', 'admin'].includes(hash)) {
-    view.value = hash as View
+  const hashView = viewFromRouteName(hash)
+  if (hashView) {
+    view.value = hashView
+    return
+  }
+  const pathView = viewFromPath(window.location.pathname)
+  if (pathView) {
+    view.value = pathView
   }
 })
 </script>

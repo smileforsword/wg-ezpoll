@@ -119,6 +119,15 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
     assert "deploy/install/install-ubuntu-debian.sh" in script
 
 
+def test_frontend_accepts_path_routes_for_nginx_spa_fallback() -> None:
+    app = read("apps/frontend/src/App.vue")
+
+    assert "function viewFromPath(pathname: string): View | null" in app
+    assert "window.location.pathname" in app
+    assert "firstSegment === 'password'" in app
+    assert "viewFromRouteName(hash)" in app
+
+
 def test_ops_scripts_exclude_artifacts_and_support_reconcile() -> None:
     backup = read("deploy/ops/backup.sh")
     restore = read("deploy/ops/restore.sh")
