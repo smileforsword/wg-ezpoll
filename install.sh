@@ -7,6 +7,7 @@ REPO_URL="${REPO_URL:-}"
 REPO_REF="${REPO_REF:-main}"
 WIREGUARD_LISTEN_PORT="${WIREGUARD_LISTEN_PORT:-51820}"
 WIREPORTAL_INTERACTIVE_CONFIG="${WIREPORTAL_INTERACTIVE_CONFIG:-true}"
+RESOLVED_REPO_ROOT=""
 
 log() {
     printf '[wireportal-bootstrap] %s\n' "$*" >&2
@@ -130,7 +131,7 @@ resolve_repo_root() {
     local local_script_dir
     local_script_dir="$(script_dir || true)"
     if [[ -n "$local_script_dir" && -f "$local_script_dir/deploy/install/install-ubuntu-debian.sh" ]]; then
-        printf '%s\n' "$local_script_dir"
+        RESOLVED_REPO_ROOT="$local_script_dir"
         return
     fi
     if [[ -z "$REPO_URL" ]]; then
@@ -149,17 +150,16 @@ resolve_repo_root() {
         install -d -m 0755 -o root -g root "$(dirname "$CHECKOUT_DIR")"
         git clone --branch "$REPO_REF" "$REPO_URL" "$CHECKOUT_DIR" >&2
     fi
-    printf '%s\n' "$CHECKOUT_DIR"
+    RESOLVED_REPO_ROOT="$CHECKOUT_DIR"
 }
 
 main() {
     require_root
     require_debian_like
-    local repo_root
-    repo_root="$(resolve_repo_root)"
+    resolve_repo_root
     configure_install_environment
-    log "Running Ubuntu/Debian installer from $repo_root"
-    bash "$repo_root/deploy/install/install-ubuntu-debian.sh"
+    log "Running Ubuntu/Debian installer from $RESOLVED_REPO_ROOT"
+    bash "$RESOLVED_REPO_ROOT/deploy/install/install-ubuntu-debian.sh"
 }
 
 main "$@"

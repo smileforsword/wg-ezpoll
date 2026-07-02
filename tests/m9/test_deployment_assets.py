@@ -83,6 +83,8 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
 
     assert script.startswith("#!/usr/bin/env bash")
     assert "REPO_URL" in script
+    assert "RESOLVED_REPO_ROOT=" in script
+    assert 'repo_root="$(resolve_repo_root)"' not in script
     assert 'local source_path="${BASH_SOURCE[0]-}"' in script
     assert "local_script_dir=\"$(script_dir || true)\"" in script
     assert "printf '[wireportal-bootstrap] %s\\n' \"$*\" >&2" in script
@@ -91,6 +93,8 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
     assert "prompt_value ADMIN_IP_WHITELIST" in script
     assert "git clone --branch \"$REPO_REF\" \"$REPO_URL\" \"$CHECKOUT_DIR\" >&2" in script
     assert "git -C \"$CHECKOUT_DIR\" pull --ff-only origin \"$REPO_REF\" >&2" in script
+    assert "RESOLVED_REPO_ROOT=\"$CHECKOUT_DIR\"" in script
+    assert "bash \"$RESOLVED_REPO_ROOT/deploy/install/install-ubuntu-debian.sh\"" in script
     assert "deploy/install/install-ubuntu-debian.sh" in script
 
 
