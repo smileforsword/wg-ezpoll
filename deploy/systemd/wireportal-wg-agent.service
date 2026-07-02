@@ -1,0 +1,28 @@
+[Unit]
+Description=WirePortal wg-agent service
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=yourvpn
+WorkingDirectory=/opt/yourvpn/app
+EnvironmentFile=/etc/yourvpn/yourvpn.env
+RuntimeDirectory=yourvpn
+RuntimeDirectoryMode=0770
+UMask=0007
+ExecStart=/opt/yourvpn/venv/bin/python -m yourvpn_wg_agent.main --socket /run/yourvpn/wg-agent.sock
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/run/yourvpn /var/log/yourvpn
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target

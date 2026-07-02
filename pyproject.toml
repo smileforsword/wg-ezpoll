@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wireportal-monorepo"
+version = "0.1.0"
+description = "WirePortal V1 monorepo skeleton"
+requires-python = ">=3.11"
+dependencies = [
+  "alembic",
+  "argon2-cffi",
+  "fastapi",
+  "pydantic",
+  "pydantic-settings",
+  "sqlalchemy",
+  "uvicorn",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+]
+
+[tool.setuptools]
+packages = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = [
+  ".",
+  "packages/python/yourvpn-core/src",
+  "apps/api/src",
+  "apps/worker/src",
+  "apps/wg-agent/src",
+]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]

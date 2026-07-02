@@ -1,0 +1,28 @@
+{
+  "name": "@wireportal/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build",
+    "lint": "eslint src vite.config.ts eslint.config.mjs --max-warnings=0",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@vitejs/plugin-vue": "^5.2.4",
+    "vite": "^6.3.5",
+    "vue": "^3.5.17"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.30.1",
+    "@types/node": "^22.15.34",
+    "@vue/eslint-config-typescript": "^14.5.1",
+    "@vue/tsconfig": "^0.7.0",
+    "eslint": "^9.30.1",
+    "eslint-plugin-vue": "^10.2.0",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.35.1",
+    "vue-tsc": "^2.2.10"
+  }
+}

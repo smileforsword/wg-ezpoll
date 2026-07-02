@@ -1,0 +1,24 @@
+[Unit]
+Description=WirePortal worker service
+Wants=network-online.target
+After=network-online.target wireportal-wg-agent.service
+Requires=wireportal-wg-agent.service
+
+[Service]
+Type=simple
+User=yourvpn
+Group=yourvpn
+WorkingDirectory=/opt/yourvpn/app
+EnvironmentFile=/etc/yourvpn/yourvpn.env
+ExecStart=/opt/yourvpn/venv/bin/python -m yourvpn_worker.main --interval 5
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/yourvpn /run/yourvpn /var/log/yourvpn
+
+[Install]
+WantedBy=multi-user.target
