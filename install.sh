@@ -11,7 +11,7 @@ WIREPORTAL_INTERACTIVE_CONFIG="${WIREPORTAL_INTERACTIVE_CONFIG:-true}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 log() {
-    printf '[wireportal-bootstrap] %s\n' "$*"
+    printf '[wireportal-bootstrap] %s\n' "$*" >&2
 }
 
 require_root() {
