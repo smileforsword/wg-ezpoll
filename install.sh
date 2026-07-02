@@ -8,10 +8,16 @@ REPO_REF="${REPO_REF:-main}"
 WIREGUARD_LISTEN_PORT="${WIREGUARD_LISTEN_PORT:-51820}"
 WIREPORTAL_INTERACTIVE_CONFIG="${WIREPORTAL_INTERACTIVE_CONFIG:-true}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 log() {
     printf '[wireportal-bootstrap] %s\n' "$*" >&2
+}
+
+script_dir() {
+    local source_path="${BASH_SOURCE[0]-}"
+    if [[ -z "$source_path" || ! -f "$source_path" ]]; then
+        return
+    fi
+    cd "$(dirname "$source_path")" && pwd
 }
 
 require_root() {
@@ -121,8 +127,10 @@ configure_install_environment() {
 }
 
 resolve_repo_root() {
-    if [[ -f "$SCRIPT_DIR/deploy/install/install-ubuntu-debian.sh" ]]; then
-        printf '%s\n' "$SCRIPT_DIR"
+    local local_script_dir
+    local_script_dir="$(script_dir || true)"
+    if [[ -n "$local_script_dir" && -f "$local_script_dir/deploy/install/install-ubuntu-debian.sh" ]]; then
+        printf '%s\n' "$local_script_dir"
         return
     fi
     if [[ -z "$REPO_URL" ]]; then

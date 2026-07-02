@@ -83,6 +83,8 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
 
     assert script.startswith("#!/usr/bin/env bash")
     assert "REPO_URL" in script
+    assert 'local source_path="${BASH_SOURCE[0]-}"' in script
+    assert "local_script_dir=\"$(script_dir || true)\"" in script
     assert "printf '[wireportal-bootstrap] %s\\n' \"$*\" >&2" in script
     assert "detect_public_ip" in script
     assert "prompt_value SERVER_NAME" in script
