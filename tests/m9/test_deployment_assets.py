@@ -89,8 +89,8 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
     assert "detect_public_ip" in script
     assert "prompt_value SERVER_NAME" in script
     assert "prompt_value ADMIN_IP_WHITELIST" in script
-    assert "git clone --branch \"$REPO_REF\" \"$REPO_URL\" \"$CHECKOUT_DIR\"" in script
-    assert "git -C \"$CHECKOUT_DIR\" pull --ff-only origin \"$REPO_REF\"" in script
+    assert "git clone --branch \"$REPO_REF\" \"$REPO_URL\" \"$CHECKOUT_DIR\" >&2" in script
+    assert "git -C \"$CHECKOUT_DIR\" pull --ff-only origin \"$REPO_REF\" >&2" in script
     assert "deploy/install/install-ubuntu-debian.sh" in script
 
 
