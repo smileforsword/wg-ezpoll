@@ -5,6 +5,8 @@ INSTALL_ROOT="${INSTALL_ROOT:-/opt/yourvpn}"
 CHECKOUT_DIR="${CHECKOUT_DIR:-$INSTALL_ROOT/source}"
 REPO_URL="${REPO_URL:-}"
 REPO_REF="${REPO_REF:-main}"
+WIREGUARD_LISTEN_PORT="${WIREGUARD_LISTEN_PORT:-51820}"
+WIREPORTAL_INTERACTIVE_CONFIG="${WIREPORTAL_INTERACTIVE_CONFIG:-true}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -45,7 +47,77 @@ ensure_git() {
     fi
     export DEBIAN_FRONTEND=noninteractive
     apt-get update
-    apt-get install -y ca-certificates git
+    apt-get install -y ca-certificates curl git
+}
+
+detect_public_ip() {
+    if ! command -v curl >/dev/null 2>&1; then
+        return
+    fi
+
+    local ip
+    for url in https://api.ipify.org https://ifconfig.me/ip; do
+        ip="$(curl -fsSL --max-time 5 "$url" 2>/dev/null || true)"
+        if [[ "$ip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ || "$ip" =~ : ]]; then
+            printf '%s\n' "$ip"
+            return
+        fi
+    done
+}
+
+ssh_admin_cidr() {
+    local source_ip="${SSH_CLIENT%% *}"
+    if [[ -z "$source_ip" ]]; then
+        return
+    fi
+    if [[ "$source_ip" == *:* ]]; then
+        printf '%s/128\n' "$source_ip"
+    else
+        printf '%s/32\n' "$source_ip"
+    fi
+}
+
+prompt_value() {
+    local name="$1"
+    local label="$2"
+    local default_value="$3"
+    local current_value="${!name:-}"
+    local reply
+
+    if [[ -n "$current_value" ]]; then
+        export "$name=$current_value"
+        return
+    fi
+
+    if [[ "$WIREPORTAL_INTERACTIVE_CONFIG" != "true" || ! -r /dev/tty || ! -w /dev/tty ]]; then
+        export "$name=$default_value"
+        return
+    fi
+
+    if [[ -n "$default_value" ]]; then
+        printf '%s [%s]: ' "$label" "$default_value" >/dev/tty
+    else
+        printf '%s: ' "$label" >/dev/tty
+    fi
+    IFS= read -r reply </dev/tty
+    export "$name=${reply:-$default_value}"
+}
+
+configure_install_environment() {
+    local public_ip
+    public_ip="$(detect_public_ip || true)"
+
+    local default_server_name="${SERVER_NAME:-${public_ip:-$(hostname -f 2>/dev/null || hostname)}}"
+    prompt_value SERVER_NAME "Public domain or server public IP" "$default_server_name"
+
+    local default_base_url="${PUBLIC_BASE_URL:-http://$SERVER_NAME}"
+    prompt_value PUBLIC_BASE_URL "Public Web base URL" "$default_base_url"
+
+    local default_endpoint="${WIREGUARD_ENDPOINT:-$SERVER_NAME:$WIREGUARD_LISTEN_PORT}"
+    prompt_value WIREGUARD_ENDPOINT "WireGuard public endpoint" "$default_endpoint"
+
+    local default_admin_whitelist="${ADMIN_IP_WHITELIST:-$(ssh_admin_cidr || true)}"
+    prompt_value ADMIN_IP_WHITELIST "Admin IP whitelist CIDR, for example 203.0.113.10/32" "$default_admin_whitelist"
 }
 
 resolve_repo_root() {
@@ -77,6 +149,7 @@ main() {
     require_debian_like
     local repo_root
     repo_root="$(resolve_repo_root)"
+    configure_install_environment
     log "Running Ubuntu/Debian installer from $repo_root"
     bash "$repo_root/deploy/install/install-ubuntu-debian.sh"
 }

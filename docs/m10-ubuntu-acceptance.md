@@ -44,12 +44,10 @@ Or bootstrap from GitHub with the root `install.sh`:
 curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.sh | sudo env \
   REPO_URL=https://github.com/OWNER/REPO.git \
   REPO_REF=main \
-  SERVER_NAME=vpn.example.com \
-  PUBLIC_BASE_URL=https://vpn.example.com \
-  WIREGUARD_ENDPOINT=vpn.example.com:51820 \
-  ADMIN_IP_WHITELIST=203.0.113.0/24 \
   bash
 ```
+
+The bootstrap script interactively confirms the public domain or server public IP, the Web base URL, the WireGuard endpoint, and the admin IP whitelist CIDR. It uses the detected server public IP and SSH source IP as defaults when available.
 
 For offline or controlled environments, provide the fixed WireGuard MSI from local storage:
 

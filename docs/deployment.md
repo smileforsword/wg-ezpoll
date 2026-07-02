@@ -250,6 +250,17 @@ sudo SERVER_NAME=vpn.example.com \
   bash deploy/install/install-ubuntu-debian.sh
 ```
 
+Bootstrap from GitHub on a fresh Ubuntu/Debian host:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/OWNER/REPO/main/install.sh | sudo env \
+  REPO_URL=https://github.com/OWNER/REPO.git \
+  REPO_REF=main \
+  bash
+```
+
+The bootstrap script prompts for the public domain or server public IP, public Web base URL, WireGuard endpoint, and admin IP whitelist CIDR. Set any of `SERVER_NAME`, `PUBLIC_BASE_URL`, `WIREGUARD_ENDPOINT`, or `ADMIN_IP_WHITELIST` in the environment to skip that prompt.
+
 The installer defaults `WIREGUARD_MSI_SOURCE` to the fixed official MSI URL and verifies SHA256 before caching it. For offline or internal deployments, provide a local file:
 
 ```bash
