@@ -44,6 +44,7 @@ def test_systemd_units_keep_wg_agent_local() -> None:
 def test_nginx_proxies_only_api_and_static_frontend() -> None:
     nginx = read("deploy/nginx/wireportal.conf")
 
+    assert "listen __NGINX_LISTEN_PORT__;" in nginx
     assert "proxy_pass http://127.0.0.1:8008/api/" in nginx
     assert "proxy_pass http://127.0.0.1:8009" not in nginx
     assert "wg-agent" not in nginx
@@ -66,6 +67,12 @@ def test_install_script_covers_m9_installation_steps() -> None:
     assert "nginx" not in package_block
     assert "require_nginx" in script
     assert "command -v nginx" in script
+    assert "NGINX_LISTEN_PORT" in script
+    assert "NGINX_CONF_TARGET" in script
+    assert "/www/server/panel/vhost/nginx/wireportal.conf" in script
+    assert "NGINX_DISABLE_DEFAULT_SITE" in script
+    assert 'if [[ "$NGINX_DISABLE_DEFAULT_SITE" == "true" ]]' in script
+    assert "rm -f /etc/nginx/sites-enabled/default" in script
     assert "wg genkey" in script
     assert "wg-quick@$WG_INTERFACE.service" in script
     assert "WIREGUARD_MSI_SHA256" in script
@@ -90,6 +97,8 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
     assert "REPO_URL" in script
     assert "RESOLVED_REPO_ROOT=" in script
     assert "BOOTSTRAP_GIT_TIMEOUT_SECONDS=\"${BOOTSTRAP_GIT_TIMEOUT_SECONDS:-20}\"" in script
+    assert "NGINX_LISTEN_PORT=\"${NGINX_LISTEN_PORT:-80}\"" in script
+    assert "default_base_url=\"http://$SERVER_NAME:$NGINX_LISTEN_PORT\"" in script
     assert 'repo_root="$(resolve_repo_root)"' not in script
     assert 'local source_path="${BASH_SOURCE[0]-}"' in script
     assert "local_script_dir=\"$(script_dir || true)\"" in script

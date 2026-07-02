@@ -21,6 +21,9 @@ WG_INTERFACE="${WG_INTERFACE:-wg0}"
 VPN_CIDR="${VPN_CIDR:-10.77.0.0/20}"
 VPN_SERVER_IP="${VPN_SERVER_IP:-10.77.0.1}"
 WIREGUARD_LISTEN_PORT="${WIREGUARD_LISTEN_PORT:-51820}"
+NGINX_LISTEN_PORT="${NGINX_LISTEN_PORT:-80}"
+NGINX_CONF_TARGET="${NGINX_CONF_TARGET:-}"
+NGINX_DISABLE_DEFAULT_SITE="${NGINX_DISABLE_DEFAULT_SITE:-false}"
 HOST_FQDN="$(hostname -f 2>/dev/null || hostname)"
 SERVER_NAME="${SERVER_NAME:-$HOST_FQDN}"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-http://$SERVER_NAME}"
@@ -95,7 +98,6 @@ require_nginx() {
         printf 'Nginx is required but was not found. Install or enable the existing server Nginx before rerunning.\n' >&2
         exit 1
     fi
-    install -d -m 0755 -o root -g root /etc/nginx/sites-available /etc/nginx/sites-enabled
 }
 
 require_node_version() {
@@ -368,16 +370,41 @@ install_systemd_units() {
     systemctl daemon-reload
 }
 
+detect_nginx_conf_target() {
+    if [[ -n "$NGINX_CONF_TARGET" ]]; then
+        printf '%s\n' "$NGINX_CONF_TARGET"
+        return
+    fi
+
+    if [[ -d /www/server/panel/vhost/nginx ]]; then
+        printf '%s\n' /www/server/panel/vhost/nginx/wireportal.conf
+        return
+    fi
+
+    printf '%s\n' /etc/nginx/sites-available/wireportal.conf
+}
+
 install_nginx_config() {
     require_nginx
-    local target=/etc/nginx/sites-available/wireportal.conf
+    local target
+    target="$(detect_nginx_conf_target)"
+    install -d -m 0755 -o root -g root "$(dirname "$target")"
     sed \
+        -e "s#__NGINX_LISTEN_PORT__#$NGINX_LISTEN_PORT#g" \
         -e "s#__SERVER_NAME__#$SERVER_NAME#g" \
         -e "s#__STATIC_ROOT__#$STATIC_DIR#g" \
         "$APP_DIR/deploy/nginx/wireportal.conf" >"$target"
-    ln -sfn "$target" /etc/nginx/sites-enabled/wireportal.conf
-    rm -f /etc/nginx/sites-enabled/default
+
+    if [[ "$target" == /etc/nginx/sites-available/* ]]; then
+        install -d -m 0755 -o root -g root /etc/nginx/sites-enabled
+        ln -sfn "$target" /etc/nginx/sites-enabled/wireportal.conf
+        if [[ "$NGINX_DISABLE_DEFAULT_SITE" == "true" ]]; then
+            rm -f /etc/nginx/sites-enabled/default
+        fi
+    fi
+
     nginx -t
+    log "Installed nginx config $target on port $NGINX_LISTEN_PORT"
 }
 
 enable_services() {

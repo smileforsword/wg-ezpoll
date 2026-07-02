@@ -7,6 +7,7 @@ REPO_URL="${REPO_URL:-}"
 REPO_REF="${REPO_REF:-main}"
 BOOTSTRAP_GIT_TIMEOUT_SECONDS="${BOOTSTRAP_GIT_TIMEOUT_SECONDS:-20}"
 BOOTSTRAP_CONNECT_TIMEOUT_SECONDS="${BOOTSTRAP_CONNECT_TIMEOUT_SECONDS:-5}"
+NGINX_LISTEN_PORT="${NGINX_LISTEN_PORT:-80}"
 WIREGUARD_LISTEN_PORT="${WIREGUARD_LISTEN_PORT:-51820}"
 WIREPORTAL_INTERACTIVE_CONFIG="${WIREPORTAL_INTERACTIVE_CONFIG:-true}"
 RESOLVED_REPO_ROOT=""
@@ -251,7 +252,11 @@ configure_install_environment() {
     local default_server_name="${SERVER_NAME:-${public_ip:-$(hostname -f 2>/dev/null || hostname)}}"
     prompt_value SERVER_NAME "Public domain or server public IP" "$default_server_name"
 
-    local default_base_url="${PUBLIC_BASE_URL:-http://$SERVER_NAME}"
+    local default_base_url="http://$SERVER_NAME"
+    if [[ "$NGINX_LISTEN_PORT" != "80" ]]; then
+        default_base_url="http://$SERVER_NAME:$NGINX_LISTEN_PORT"
+    fi
+    default_base_url="${PUBLIC_BASE_URL:-$default_base_url}"
     prompt_value PUBLIC_BASE_URL "Public Web base URL" "$default_base_url"
 
     local default_endpoint="${WIREGUARD_ENDPOINT:-$SERVER_NAME:$WIREGUARD_LISTEN_PORT}"
