@@ -92,7 +92,8 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
     assert "prompt_value SERVER_NAME" in script
     assert "prompt_value ADMIN_IP_WHITELIST" in script
     assert "git clone --branch \"$REPO_REF\" \"$REPO_URL\" \"$CHECKOUT_DIR\" >&2" in script
-    assert "git -C \"$CHECKOUT_DIR\" pull --ff-only origin \"$REPO_REF\" >&2" in script
+    assert "git -C \"$CHECKOUT_DIR\" merge --ff-only \"origin/$REPO_REF\" >&2" in script
+    assert "git -C \"$CHECKOUT_DIR\" pull" not in script
     assert "RESOLVED_REPO_ROOT=\"$CHECKOUT_DIR\"" in script
     assert "bash \"$RESOLVED_REPO_ROOT/deploy/install/install-ubuntu-debian.sh\"" in script
     assert "deploy/install/install-ubuntu-debian.sh" in script

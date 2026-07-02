@@ -144,7 +144,7 @@ resolve_repo_root() {
         log "Updating existing checkout at $CHECKOUT_DIR"
         git -C "$CHECKOUT_DIR" fetch origin "$REPO_REF" >&2
         git -C "$CHECKOUT_DIR" checkout "$REPO_REF" >&2
-        git -C "$CHECKOUT_DIR" pull --ff-only origin "$REPO_REF" >&2
+        git -C "$CHECKOUT_DIR" merge --ff-only "origin/$REPO_REF" >&2
     else
         log "Cloning $REPO_URL into $CHECKOUT_DIR"
         install -d -m 0755 -o root -g root "$(dirname "$CHECKOUT_DIR")"
