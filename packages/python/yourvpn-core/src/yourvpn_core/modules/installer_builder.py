@@ -16,8 +16,10 @@ from yourvpn_core.modules.errors import InstallerBuildError, ValidationError
 
 
 PACKAGE_FORMAT = "wireportal-self-pack-v1"
+CONFIG_ZIP_FORMAT = "wireportal-config-zip-v1"
 MANIFEST_NAME = "wireportal-package.json"
 RUNNER_NAME = "runner/install-wireportal.ps1"
+README_NAME = "README.txt"
 DEVICE_INI_NAME = "payload/device.ini"
 WIREGUARD_MSI_NAME = "payload/wireguard-amd64.msi"
 
@@ -188,6 +190,48 @@ try {
   }
 }
 """.replace("__TUNNEL_NAME__", tunnel_name)
+
+
+def render_config_zip_runner(*, tunnel_name: str) -> str:
+    return r"""
+$ErrorActionPreference = "Stop"
+$PayloadDir = Join-Path $PSScriptRoot "..\payload"
+$IniPath = Join-Path $PayloadDir "device.ini"
+$TunnelIniPath = Join-Path $env:TEMP "__TUNNEL_NAME__.ini"
+$WireGuardExe = Join-Path $env:ProgramFiles "WireGuard\wireguard.exe"
+
+try {
+  if (-not (Test-Path -LiteralPath $WireGuardExe)) {
+    throw "WireGuard for Windows is not installed. Install it first, then run this script again."
+  }
+
+  Copy-Item -LiteralPath $IniPath -Destination $TunnelIniPath -Force
+  Start-Process -FilePath $WireGuardExe -ArgumentList @("/installtunnelservice", $TunnelIniPath) -Wait -Verb RunAs
+} finally {
+  if (Test-Path -LiteralPath $TunnelIniPath) {
+    Remove-Item -LiteralPath $TunnelIniPath -Force
+  }
+}
+""".replace("__TUNNEL_NAME__", tunnel_name)
+
+
+def render_config_zip_readme(*, tunnel_name: str) -> str:
+    return "\n".join(
+        [
+            "WirePortal tunnel package",
+            "",
+            "This package does not install WireGuard.",
+            "1. Install the official WireGuard for Windows client first.",
+            "2. Extract this ZIP to a local folder.",
+            "3. Right-click runner\\install-wireportal.ps1 and choose Run with PowerShell.",
+            "4. Approve the Windows UAC prompt to add the tunnel.",
+            "",
+            f"Tunnel name: {tunnel_name}",
+            "",
+            "Keep this ZIP private. It contains the device WireGuard private key.",
+            "",
+        ]
+    )
 
 
 def _asset_metadata(name: str, archive_path: str, source_path: Path) -> dict[str, Any]:
@@ -396,6 +440,152 @@ class SelfPackInstallerBuilder:
                 package.write(wireguard_msi, WIREGUARD_MSI_NAME)
                 package.write(device_ini, DEVICE_INI_NAME)
                 package.write(runner, RUNNER_NAME)
+            os.replace(tmp_path, output_path)
+        finally:
+            try:
+                tmp_path.unlink()
+            except FileNotFoundError:
+                pass
+
+
+class ConfigZipInstallerBuilder:
+    job_type = "build_config_zip"
+
+    def build(self, request: BuildInstallerRequest) -> BuildInstallerResult:
+        settings = request.settings
+        if not settings.wireguard_server_public_key.strip():
+            raise InstallerBuildError("WireGuard server public key is required for config ZIP builder")
+        if not settings.wireguard_endpoint.strip():
+            raise InstallerBuildError("WireGuard endpoint is required for config ZIP builder")
+
+        artifacts_dir = Path(settings.artifacts_dir)
+        build_tmp_dir = Path(settings.build_tmp_dir)
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        build_tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        private_key, public_key = generate_wireguard_keypair()
+        file_name = f"wireportal-{request.device_id}.zip"
+        output_path = artifacts_dir / file_name
+        tunnel_name = _tunnel_name(settings.wireguard_tunnel_name_prefix, request.device_name)
+
+        with tempfile.TemporaryDirectory(prefix="wireportal-build-", dir=build_tmp_dir) as tmp:
+            tmp_dir = Path(tmp)
+            device_ini = tmp_dir / "device.ini"
+            runner = tmp_dir / "install-wireportal.ps1"
+            readme = tmp_dir / "README.txt"
+            device_ini.write_text(
+                render_wireguard_ini(
+                    private_key=private_key,
+                    vpn_ip=request.vpn_ip,
+                    server_public_key=settings.wireguard_server_public_key,
+                    endpoint=settings.wireguard_endpoint,
+                    allowed_ips=request.allowed_ips,
+                    persistent_keepalive_seconds=settings.wireguard_persistent_keepalive_seconds,
+                ),
+                encoding="utf-8",
+            )
+            runner.write_text(render_config_zip_runner(tunnel_name=tunnel_name), encoding="utf-8")
+            readme.write_text(render_config_zip_readme(tunnel_name=tunnel_name), encoding="utf-8")
+
+            manifest = self._manifest(
+                request=request,
+                tunnel_name=tunnel_name,
+                device_ini=device_ini,
+                runner=runner,
+                readme=readme,
+                public_key=public_key,
+            )
+            self._write_package(
+                output_path=output_path,
+                manifest=manifest,
+                device_ini=device_ini,
+                runner=runner,
+                readme=readme,
+            )
+            temp_ini_path = device_ini
+
+        temp_ini_deleted = not temp_ini_path.exists()
+        if not temp_ini_deleted:
+            raise InstallerBuildError("Temporary device INI was not deleted after build")
+
+        return BuildInstallerResult(
+            public_key=public_key,
+            file_name=file_name,
+            artifact_path=output_path,
+            sha256=sha256_file(output_path).lower(),
+            file_size=output_path.stat().st_size,
+            signed_status="zip-unsigned",
+            config_format="ini",
+            wireguard_installer_version="external",
+            manifest=manifest,
+            temp_ini_deleted=temp_ini_deleted,
+        )
+
+    def _manifest(
+        self,
+        *,
+        request: BuildInstallerRequest,
+        tunnel_name: str,
+        device_ini: Path,
+        runner: Path,
+        readme: Path,
+        public_key: str,
+    ) -> dict[str, Any]:
+        return {
+            "format": CONFIG_ZIP_FORMAT,
+            "package_id": request.package_id,
+            "device_id": request.device_id,
+            "device_name": request.device_name,
+            "tunnel_name": tunnel_name,
+            "created_at": request.now.replace(microsecond=0).astimezone(UTC).isoformat(),
+            "config_format": "ini",
+            "wireguard_endpoint": request.settings.wireguard_endpoint,
+            "device": {
+                "vpn_ip": request.vpn_ip,
+                "public_key": public_key,
+                "allowed_ips": request.allowed_ips,
+                "access_group_ids": request.allowed_group_ids,
+            },
+            "install_plan": [
+                "install_wireguard_manually",
+                "extract_zip",
+                "run_windows_runner",
+                "set_wireguard_tunnel_from_ini",
+                "remove_intermediate_ini",
+            ],
+            "cleanup": {
+                "build_temp_ini_deleted": True,
+                "runtime_remove_released_ini": True,
+            },
+            "runner": {
+                "entrypoint": RUNNER_NAME,
+                "requires_admin": True,
+            },
+            "assets": [
+                _asset_metadata("device_ini", DEVICE_INI_NAME, device_ini),
+                _asset_metadata("windows_runner", RUNNER_NAME, runner),
+                _asset_metadata("readme", README_NAME, readme),
+            ],
+        }
+
+    def _write_package(
+        self,
+        *,
+        output_path: Path,
+        manifest: dict[str, Any],
+        device_ini: Path,
+        runner: Path,
+        readme: Path,
+    ) -> None:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(delete=False, dir=output_path.parent, suffix=".tmp") as tmp:
+            tmp_path = Path(tmp.name)
+        try:
+            with zipfile.ZipFile(tmp_path, mode="w", compression=zipfile.ZIP_DEFLATED) as package:
+                package.writestr(MANIFEST_NAME, json.dumps(manifest, indent=2, sort_keys=True))
+                package.write(device_ini, DEVICE_INI_NAME)
+                package.write(runner, RUNNER_NAME)
+                package.write(readme, README_NAME)
             os.replace(tmp_path, output_path)
         finally:
             try:

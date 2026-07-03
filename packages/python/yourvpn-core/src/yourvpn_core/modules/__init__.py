@@ -25,6 +25,7 @@ from yourvpn_core.modules.devices import CreateDeviceCommand, DeviceModule, Down
 from yourvpn_core.modules.installer_builder import (
     BuildInstallerRequest,
     BuildInstallerResult,
+    ConfigZipInstallerBuilder,
     FakeInstallerBuilder,
     InstallerBuilder,
     SelfPackInstallerBuilder,
@@ -57,6 +58,7 @@ __all__ = [
     "ApproveApplicationCommand",
     "BuildInstallerRequest",
     "BuildInstallerResult",
+    "ConfigZipInstallerBuilder",
     "CompleteSetupCommand",
     "CreateDeviceCommand",
     "DeviceModule",

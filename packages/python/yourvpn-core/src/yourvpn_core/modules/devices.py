@@ -33,6 +33,7 @@ from yourvpn_core.modules.errors import (
 from yourvpn_core.modules.access_groups import AccessGroupModule, AccessGroupRoute
 from yourvpn_core.modules.installer_builder import (
     BuildInstallerRequest,
+    ConfigZipInstallerBuilder,
     FakeInstallerBuilder,
     InstallerBuilder,
     SelfPackInstallerBuilder,
@@ -89,6 +90,7 @@ class DeviceModule:
         self.installer_builder = installer_builder
         self.fake_builder = fake_builder or FakeInstallerBuilder()
         self.self_pack_builder = SelfPackInstallerBuilder()
+        self.config_zip_builder = ConfigZipInstallerBuilder()
 
     def list_user_devices(self, db: OrmSession, *, user_id: str) -> list[Device]:
         return db.scalars(select(Device).where(Device.user_id == user_id).order_by(Device.created_at.desc())).all()
@@ -475,13 +477,15 @@ class DeviceModule:
             return self.fake_builder
         if mode == "self_pack":
             return self.self_pack_builder
+        if mode == "config_zip":
+            return self.config_zip_builder
         if mode == "auto":
             if settings.wireguard_msi_path:
                 return self.self_pack_builder
             if settings.fake_builder_enabled:
                 return self.fake_builder
             raise ConflictError("No installer builder is configured")
-        raise ValidationError("installer_builder_mode must be auto, fake, or self_pack")
+        raise ValidationError("installer_builder_mode must be auto, fake, self_pack, or config_zip")
 
     def _compile_allowed_ips(
         self,

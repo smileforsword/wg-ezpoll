@@ -16,7 +16,14 @@ from yourvpn_core.db import AccessGroup, AccessGroupRoute, Base, Device, Install
 from yourvpn_core.db.session import create_session_factory
 from yourvpn_core.domain.enums import InstallPackageStatus, JobStatus, Role, UserStatus
 from yourvpn_core.modules.auth import PasswordService
-from yourvpn_core.modules.installer_builder import DEVICE_INI_NAME, MANIFEST_NAME, RUNNER_NAME, WIREGUARD_MSI_NAME
+from yourvpn_core.modules.installer_builder import (
+    CONFIG_ZIP_FORMAT,
+    DEVICE_INI_NAME,
+    MANIFEST_NAME,
+    README_NAME,
+    RUNNER_NAME,
+    WIREGUARD_MSI_NAME,
+)
 
 
 SERVER_PUBLIC_KEY = "qenSvxW2fyx68E89mYqYlYa7C4cPm3+uoXKRFq6eZFc="
@@ -44,6 +51,19 @@ def _settings(tmp_path: Path, msi_path: Path, msi_sha256: str) -> AppSettings:
         installer_builder_mode="self_pack",
         wireguard_msi_path=str(msi_path),
         wireguard_msi_sha256=msi_sha256,
+        wireguard_server_public_key=SERVER_PUBLIC_KEY,
+        wireguard_endpoint="vpn.example.test:51820",
+    )
+
+
+def _config_zip_settings(tmp_path: Path) -> AppSettings:
+    return AppSettings(
+        environment="test",
+        session_cookie_secure=False,
+        artifacts_dir=tmp_path / "artifacts",
+        build_tmp_dir=tmp_path / "build-tmp",
+        installer_builder_mode="config_zip",
+        fake_builder_enabled=False,
         wireguard_server_public_key=SERVER_PUBLIC_KEY,
         wireguard_endpoint="vpn.example.test:51820",
     )
@@ -138,6 +158,55 @@ def test_self_pack_builder_generates_installer_package_without_storing_private_k
     assert db_device.public_key in manifest["device"]["public_key"]
     assert "PrivateKey =" not in json.dumps(manifest)
     assert "installtunnelservice" in runner
+    assert not list((tmp_path / "build-tmp").glob("**/device.ini"))
+
+
+def test_config_zip_builder_generates_post_wireguard_import_package(
+    tmp_path: Path,
+    session_factory: sessionmaker[OrmSession],
+) -> None:
+    settings = _config_zip_settings(tmp_path)
+    client = TestClient(create_app(settings, session_factory=session_factory))
+    _create_user_with_route(session_factory)
+    csrf = _login(client)
+
+    response = client.post(
+        "/api/me/devices",
+        headers={"x-csrf-token": csrf},
+        json={"name": "Zip Laptop"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    package = body["package"]
+    assert package["file_name"].endswith(".zip")
+    assert package["signed_status"] == "zip-unsigned"
+
+    with session_factory() as db:
+        db_package = db.get(InstallPackage, package["id"])
+        assert db_package is not None
+        assert db_package.wireguard_installer_version == "external"
+        artifact = Path(db_package.artifact_path or "")
+        assert artifact.exists()
+        build_job = db.scalar(select(Job).where(Job.job_type == "build_config_zip"))
+        assert build_job is not None
+        assert build_job.status == JobStatus.SUCCEEDED.value
+
+    with zipfile.ZipFile(artifact) as package_zip:
+        names = set(package_zip.namelist())
+        assert names == {MANIFEST_NAME, DEVICE_INI_NAME, RUNNER_NAME, README_NAME}
+        manifest = json.loads(package_zip.read(MANIFEST_NAME).decode("utf-8"))
+        device_ini = package_zip.read(DEVICE_INI_NAME).decode("utf-8")
+        runner = package_zip.read(RUNNER_NAME).decode("utf-8")
+        readme = package_zip.read(README_NAME).decode("utf-8")
+
+    assert manifest["format"] == CONFIG_ZIP_FORMAT
+    assert manifest["install_plan"][0] == "install_wireguard_manually"
+    assert "wireguard_installer_sha256" not in manifest
+    assert "PrivateKey =" in device_ini
+    assert "WireGuard for Windows is not installed" in runner
+    assert "msiexec.exe" not in runner
+    assert "Install the official WireGuard for Windows client first" in readme
     assert not list((tmp_path / "build-tmp").glob("**/device.ini"))
 
 
