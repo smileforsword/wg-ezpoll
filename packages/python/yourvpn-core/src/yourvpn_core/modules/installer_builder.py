@@ -290,6 +290,17 @@ class FakeInstallerBuilder:
 class SelfPackInstallerBuilder:
     job_type = "build_installer"
 
+    def __init__(
+        self,
+        *,
+        file_extension: str = ".exe",
+        job_type: str = "build_installer",
+        signed_status: str = "unsigned",
+    ) -> None:
+        self.file_extension = file_extension
+        self.job_type = job_type
+        self.signed_status = signed_status
+
     def build(self, request: BuildInstallerRequest) -> BuildInstallerResult:
         settings = request.settings
         if not settings.wireguard_msi_path:
@@ -316,7 +327,7 @@ class SelfPackInstallerBuilder:
         build_tmp_dir.mkdir(parents=True, exist_ok=True)
 
         private_key, public_key = generate_wireguard_keypair()
-        file_name = f"wireportal-{request.device_id}.exe"
+        file_name = f"wireportal-{request.device_id}{self.file_extension}"
         output_path = artifacts_dir / file_name
         tunnel_name = _tunnel_name(settings.wireguard_tunnel_name_prefix, request.device_name)
 
@@ -366,7 +377,7 @@ class SelfPackInstallerBuilder:
             artifact_path=output_path,
             sha256=sha256_file(output_path).lower(),
             file_size=output_path.stat().st_size,
-            signed_status="unsigned",
+            signed_status=self.signed_status,
             config_format="ini",
             wireguard_installer_version=settings.wireguard_installer_version,
             manifest=manifest,

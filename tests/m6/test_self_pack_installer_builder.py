@@ -56,6 +56,20 @@ def _settings(tmp_path: Path, msi_path: Path, msi_sha256: str) -> AppSettings:
     )
 
 
+def _self_pack_zip_settings(tmp_path: Path, msi_path: Path, msi_sha256: str) -> AppSettings:
+    return AppSettings(
+        environment="test",
+        session_cookie_secure=False,
+        artifacts_dir=tmp_path / "artifacts",
+        build_tmp_dir=tmp_path / "build-tmp",
+        installer_builder_mode="self_pack_zip",
+        wireguard_msi_path=str(msi_path),
+        wireguard_msi_sha256=msi_sha256,
+        wireguard_server_public_key=SERVER_PUBLIC_KEY,
+        wireguard_endpoint="vpn.example.test:51820",
+    )
+
+
 def _config_zip_settings(tmp_path: Path) -> AppSettings:
     return AppSettings(
         environment="test",
@@ -159,6 +173,54 @@ def test_self_pack_builder_generates_installer_package_without_storing_private_k
     assert "PrivateKey =" not in json.dumps(manifest)
     assert "installtunnelservice" in runner
     assert not list((tmp_path / "build-tmp").glob("**/device.ini"))
+
+
+def test_self_pack_zip_builder_includes_uploaded_wireguard_msi(
+    tmp_path: Path,
+    session_factory: sessionmaker[OrmSession],
+) -> None:
+    msi_content = b"uploaded-wireguard-msi"
+    msi_path, msi_sha256 = _write_msi(tmp_path, msi_content)
+    settings = _self_pack_zip_settings(tmp_path, msi_path, msi_sha256)
+    client = TestClient(create_app(settings, session_factory=session_factory))
+    _create_user_with_route(session_factory)
+    csrf = _login(client)
+
+    response = client.post(
+        "/api/me/devices",
+        headers={"x-csrf-token": csrf},
+        json={"name": "Zip With MSI Laptop"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    package = body["package"]
+    assert package["file_name"].endswith(".zip")
+    assert package["signed_status"] == "zip-unsigned"
+
+    with session_factory() as db:
+        db_package = db.get(InstallPackage, package["id"])
+        assert db_package is not None
+        artifact = Path(db_package.artifact_path or "")
+        assert artifact.exists()
+        build_job = db.scalar(select(Job).where(Job.job_type == "build_installer_zip"))
+        assert build_job is not None
+        assert build_job.status == JobStatus.SUCCEEDED.value
+
+    with zipfile.ZipFile(artifact) as package_zip:
+        names = set(package_zip.namelist())
+        assert WIREGUARD_MSI_NAME in names
+        assert DEVICE_INI_NAME in names
+        assert RUNNER_NAME in names
+        manifest = json.loads(package_zip.read(MANIFEST_NAME).decode("utf-8"))
+        bundled_msi = package_zip.read(WIREGUARD_MSI_NAME)
+        runner = package_zip.read(RUNNER_NAME).decode("utf-8")
+
+    assert bundled_msi == msi_content
+    assert manifest["wireguard_installer_sha256"] == msi_sha256
+    assert "install_or_detect_wireguard" in manifest["install_plan"]
+    assert "msiexec.exe" in runner
+    assert "installtunnelservice" in runner
 
 
 def test_config_zip_builder_generates_post_wireguard_import_package(

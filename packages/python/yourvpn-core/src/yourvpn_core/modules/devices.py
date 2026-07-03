@@ -90,6 +90,11 @@ class DeviceModule:
         self.installer_builder = installer_builder
         self.fake_builder = fake_builder or FakeInstallerBuilder()
         self.self_pack_builder = SelfPackInstallerBuilder()
+        self.self_pack_zip_builder = SelfPackInstallerBuilder(
+            file_extension=".zip",
+            job_type="build_installer_zip",
+            signed_status="zip-unsigned",
+        )
         self.config_zip_builder = ConfigZipInstallerBuilder()
 
     def list_user_devices(self, db: OrmSession, *, user_id: str) -> list[Device]:
@@ -477,6 +482,8 @@ class DeviceModule:
             return self.fake_builder
         if mode == "self_pack":
             return self.self_pack_builder
+        if mode == "self_pack_zip":
+            return self.self_pack_zip_builder
         if mode == "config_zip":
             return self.config_zip_builder
         if mode == "auto":
@@ -485,7 +492,7 @@ class DeviceModule:
             if settings.fake_builder_enabled:
                 return self.fake_builder
             raise ConflictError("No installer builder is configured")
-        raise ValidationError("installer_builder_mode must be auto, fake, self_pack, or config_zip")
+        raise ValidationError("installer_builder_mode must be auto, fake, self_pack, self_pack_zip, or config_zip")
 
     def _compile_allowed_ips(
         self,

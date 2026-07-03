@@ -34,6 +34,7 @@ WIREGUARD_MSI_FILE_NAME="${WIREGUARD_MSI_FILE_NAME:-wireguard-amd64-1.1.msi}"
 WIREGUARD_MSI_SHA256="${WIREGUARD_MSI_SHA256:-6DAA5D37A9E2950DFB8C48B95AB8E562CB2BAD1C785D020F38F97BEA4C6A5566}"
 WIREGUARD_MSI_SOURCE="${WIREGUARD_MSI_SOURCE:-https://download.wireguard.com/windows-client/wireguard-amd64-1.1.msi}"
 WIREGUARD_MSI_REQUIRED="${WIREGUARD_MSI_REQUIRED:-false}"
+INSTALLER_BUILDER_MODE="${INSTALLER_BUILDER_MODE:-}"
 ENABLE_WG_QUICK="${ENABLE_WG_QUICK:-true}"
 ENABLE_SYSTEMD="${ENABLE_SYSTEMD:-true}"
 REQUIRED_NODE_MAJOR="${REQUIRED_NODE_MAJOR:-18}"
@@ -261,7 +262,31 @@ write_env_file() {
     local installer_builder_mode
     local wireguard_msi_path
     server_public_key="$(tr -d '\n' <"$CONFIG_DIR/$WG_INTERFACE.public.key")"
-    if [[ "$WIREGUARD_MSI_AVAILABLE" == "true" ]]; then
+    if [[ -n "$INSTALLER_BUILDER_MODE" && "$INSTALLER_BUILDER_MODE" != "auto" ]]; then
+        installer_builder_mode="$INSTALLER_BUILDER_MODE"
+        case "$installer_builder_mode" in
+            fake)
+                fake_builder_enabled=true
+                wireguard_msi_path=
+                ;;
+            self_pack|self_pack_zip)
+                if [[ "$WIREGUARD_MSI_AVAILABLE" != "true" ]]; then
+                    printf 'INSTALLER_BUILDER_MODE=%s requires a valid WireGuard MSI.\n' "$installer_builder_mode" >&2
+                    exit 1
+                fi
+                fake_builder_enabled=false
+                wireguard_msi_path="$INSTALLERS_DIR/$WIREGUARD_MSI_FILE_NAME"
+                ;;
+            config_zip)
+                fake_builder_enabled=false
+                wireguard_msi_path=
+                ;;
+            *)
+                printf 'Unsupported INSTALLER_BUILDER_MODE: %s\n' "$installer_builder_mode" >&2
+                exit 1
+                ;;
+        esac
+    elif [[ "$WIREGUARD_MSI_AVAILABLE" == "true" ]]; then
         fake_builder_enabled=false
         installer_builder_mode=self_pack
         wireguard_msi_path="$INSTALLERS_DIR/$WIREGUARD_MSI_FILE_NAME"
