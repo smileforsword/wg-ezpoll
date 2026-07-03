@@ -112,6 +112,7 @@ def test_root_bootstrap_script_clones_and_runs_installer() -> None:
     assert "timed_git -C \"$CHECKOUT_DIR\" merge --ff-only \"origin/$REPO_REF\" >&2" in script
     assert "Git update did not complete; trying GitHub source archive fallback" in script
     assert "download_repo_archive" in script
+    assert "https://codeload.github.com/$slug/tar.gz/$archive_ref" in script
     assert "--speed-time \"$BOOTSTRAP_GIT_TIMEOUT_SECONDS\"" in script
     assert "git -C \"$CHECKOUT_DIR\" pull" not in script
     assert "RESOLVED_REPO_ROOT=\"$CHECKOUT_DIR\"" in script

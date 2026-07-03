@@ -123,28 +123,34 @@ download_repo_archive() {
     local tmp_tar
     local archive_ref
     local archive_url
+    local archive_urls
     local unpacked_dir
     tmp_dir="$(mktemp -d)"
     tmp_tar="$tmp_dir/source.tar.gz"
 
     for archive_ref in "refs/heads/$REPO_REF" "refs/tags/$REPO_REF" "$REPO_REF"; do
-        find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
-        archive_url="https://github.com/$slug/archive/$archive_ref.tar.gz"
-        log "Downloading source archive $archive_url"
-        if ! curl -fsSL --connect-timeout "$BOOTSTRAP_CONNECT_TIMEOUT_SECONDS" --speed-time "$BOOTSTRAP_GIT_TIMEOUT_SECONDS" --speed-limit 1 --max-time "$BOOTSTRAP_GIT_TIMEOUT_SECONDS" "$archive_url" -o "$tmp_tar"; then
-            continue
-        fi
-        if ! tar -xzf "$tmp_tar" -C "$tmp_dir"; then
-            continue
-        fi
-        unpacked_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
-        if [[ -n "$unpacked_dir" && -f "$unpacked_dir/deploy/install/install-ubuntu-debian.sh" ]]; then
-            install -d -m 0755 -o root -g root "$(dirname "$CHECKOUT_DIR")"
-            if replace_checkout_from_dir "$unpacked_dir"; then
-                rm -rf "$tmp_dir"
-                return 0
+        archive_urls=(
+            "https://github.com/$slug/archive/$archive_ref.tar.gz"
+            "https://codeload.github.com/$slug/tar.gz/$archive_ref"
+        )
+        for archive_url in "${archive_urls[@]}"; do
+            find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d -exec rm -rf {} + 2>/dev/null || true
+            log "Downloading source archive $archive_url"
+            if ! curl -fsSL --connect-timeout "$BOOTSTRAP_CONNECT_TIMEOUT_SECONDS" --speed-time "$BOOTSTRAP_GIT_TIMEOUT_SECONDS" --speed-limit 1 --max-time "$BOOTSTRAP_GIT_TIMEOUT_SECONDS" "$archive_url" -o "$tmp_tar"; then
+                continue
             fi
-        fi
+            if ! tar -xzf "$tmp_tar" -C "$tmp_dir"; then
+                continue
+            fi
+            unpacked_dir="$(find "$tmp_dir" -mindepth 1 -maxdepth 1 -type d | head -n 1)"
+            if [[ -n "$unpacked_dir" && -f "$unpacked_dir/deploy/install/install-ubuntu-debian.sh" ]]; then
+                install -d -m 0755 -o root -g root "$(dirname "$CHECKOUT_DIR")"
+                if replace_checkout_from_dir "$unpacked_dir"; then
+                    rm -rf "$tmp_dir"
+                    return 0
+                fi
+            fi
+        done
     done
 
     rm -rf "$tmp_dir"
