@@ -167,7 +167,7 @@ $ErrorActionPreference = "Stop"
 $PayloadDir = Join-Path $PSScriptRoot "..\payload"
 $MsiPath = Join-Path $PayloadDir "wireguard-amd64.msi"
 $IniPath = Join-Path $PayloadDir "device.ini"
-$TunnelIniPath = Join-Path $env:TEMP "__TUNNEL_NAME__.ini"
+$TunnelConfPath = Join-Path $env:TEMP "__TUNNEL_NAME__.conf"
 $WireGuardExe = Join-Path $env:ProgramFiles "WireGuard\wireguard.exe"
 
 try {
@@ -179,11 +179,11 @@ try {
     throw "WireGuard executable was not found after installer completed."
   }
 
-  Copy-Item -LiteralPath $IniPath -Destination $TunnelIniPath -Force
-  Start-Process -FilePath $WireGuardExe -ArgumentList @("/installtunnelservice", $TunnelIniPath) -Wait -Verb RunAs
+  Copy-Item -LiteralPath $IniPath -Destination $TunnelConfPath -Force
+  Start-Process -FilePath $WireGuardExe -ArgumentList @("/installtunnelservice", $TunnelConfPath) -Wait -Verb RunAs
 } finally {
-  if (Test-Path -LiteralPath $TunnelIniPath) {
-    Remove-Item -LiteralPath $TunnelIniPath -Force
+  if (Test-Path -LiteralPath $TunnelConfPath) {
+    Remove-Item -LiteralPath $TunnelConfPath -Force
   }
   if (Test-Path -LiteralPath $IniPath) {
     Remove-Item -LiteralPath $IniPath -Force
@@ -197,7 +197,7 @@ def render_config_zip_runner(*, tunnel_name: str) -> str:
 $ErrorActionPreference = "Stop"
 $PayloadDir = Join-Path $PSScriptRoot "..\payload"
 $IniPath = Join-Path $PayloadDir "device.ini"
-$TunnelIniPath = Join-Path $env:TEMP "__TUNNEL_NAME__.ini"
+$TunnelConfPath = Join-Path $env:TEMP "__TUNNEL_NAME__.conf"
 $WireGuardExe = Join-Path $env:ProgramFiles "WireGuard\wireguard.exe"
 
 try {
@@ -205,11 +205,11 @@ try {
     throw "WireGuard for Windows is not installed. Install it first, then run this script again."
   }
 
-  Copy-Item -LiteralPath $IniPath -Destination $TunnelIniPath -Force
-  Start-Process -FilePath $WireGuardExe -ArgumentList @("/installtunnelservice", $TunnelIniPath) -Wait -Verb RunAs
+  Copy-Item -LiteralPath $IniPath -Destination $TunnelConfPath -Force
+  Start-Process -FilePath $WireGuardExe -ArgumentList @("/installtunnelservice", $TunnelConfPath) -Wait -Verb RunAs
 } finally {
-  if (Test-Path -LiteralPath $TunnelIniPath) {
-    Remove-Item -LiteralPath $TunnelIniPath -Force
+  if (Test-Path -LiteralPath $TunnelConfPath) {
+    Remove-Item -LiteralPath $TunnelConfPath -Force
   }
 }
 """.replace("__TUNNEL_NAME__", tunnel_name)

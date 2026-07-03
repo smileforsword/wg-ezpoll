@@ -172,6 +172,8 @@ def test_self_pack_builder_generates_installer_package_without_storing_private_k
     assert db_device.public_key in manifest["device"]["public_key"]
     assert "PrivateKey =" not in json.dumps(manifest)
     assert "installtunnelservice" in runner
+    assert 'WirePortal-Work-Laptop.conf' in runner
+    assert 'WirePortal-Work-Laptop.ini' not in runner
     assert not list((tmp_path / "build-tmp").glob("**/device.ini"))
 
 
@@ -221,6 +223,8 @@ def test_self_pack_zip_builder_includes_uploaded_wireguard_msi(
     assert "install_or_detect_wireguard" in manifest["install_plan"]
     assert "msiexec.exe" in runner
     assert "installtunnelservice" in runner
+    assert 'WirePortal-Zip-With-MSI-Laptop.conf' in runner
+    assert 'WirePortal-Zip-With-MSI-Laptop.ini' not in runner
 
 
 def test_config_zip_builder_generates_post_wireguard_import_package(
@@ -268,6 +272,8 @@ def test_config_zip_builder_generates_post_wireguard_import_package(
     assert "PrivateKey =" in device_ini
     assert "WireGuard for Windows is not installed" in runner
     assert "msiexec.exe" not in runner
+    assert 'WirePortal-Zip-Laptop.conf' in runner
+    assert 'WirePortal-Zip-Laptop.ini' not in runner
     assert "Install the official WireGuard for Windows client first" in readme
     assert not list((tmp_path / "build-tmp").glob("**/device.ini"))
 
