@@ -7,7 +7,7 @@ from ipaddress import ip_network
 from fastapi import Cookie, Depends, FastAPI, Header, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session as OrmSession, sessionmaker
 
 from yourvpn_core.config import AppSettings, load_settings
@@ -1104,7 +1104,15 @@ def create_app(
         _actor: Actor = Depends(require_admin_actor),
         db: OrmSession = Depends(get_db),
     ):
-        statement = select(Application)
+        user_with_same_email_exists = select(User.id).where(
+            func.lower(User.email) == func.lower(Application.email)
+        ).exists()
+        statement = select(Application).where(
+            or_(
+                Application.status != ApplicationStatus.SUBMITTED.value,
+                ~user_with_same_email_exists,
+            )
+        )
         if status_filter:
             try:
                 ApplicationStatus(status_filter)

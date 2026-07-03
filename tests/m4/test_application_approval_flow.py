@@ -181,6 +181,30 @@ def test_application_approval_password_setup_and_login_flow(
         assert audit is not None
 
 
+def test_admin_application_list_hides_pending_requests_for_existing_users(
+    client: TestClient,
+    session_factory: sessionmaker[OrmSession],
+) -> None:
+    create_user(session_factory, email="admin@example.com", role=Role.ADMIN)
+    duplicate_application_id = submit_application(client, email="admin@example.com")
+    visible_application_id = submit_application(client, email="new-user@example.com")
+
+    login(client, email="admin@example.com")
+    response = client.get("/api/admin/applications")
+
+    assert response.status_code == 200
+    application_ids = [row["id"] for row in response.json()]
+    assert visible_application_id in application_ids
+    assert duplicate_application_id not in application_ids
+
+    direct_approve = client.post(
+        f"/api/admin/applications/{duplicate_application_id}/approve",
+        headers={"x-csrf-token": login(client, email="admin@example.com")},
+        json={"approved_device_limit": 1, "access_group_ids": []},
+    )
+    assert direct_approve.status_code == 409
+
+
 def test_approver_cannot_grant_high_privilege_group(
     client: TestClient,
     session_factory: sessionmaker[OrmSession],
