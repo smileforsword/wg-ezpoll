@@ -138,6 +138,19 @@ def test_frontend_api_preserves_json_content_type_with_custom_headers() -> None:
     assert "...options," not in app
 
 
+def test_frontend_admin_users_can_edit_device_limit() -> None:
+    app = read("apps/frontend/src/App.vue")
+    styles = read("apps/frontend/src/styles.css")
+
+    assert "const userLimitDrafts = reactive<Record<string, number>>({})" in app
+    assert "async function updateUserDeviceLimit(user: AdminUser)" in app
+    assert "approved_device_limit: userLimitDrafts[user.id]" in app
+    assert "`/api/admin/users/${user.id}`" in app
+    assert "class=\"data-row user-row\"" in app
+    assert ".user-row" in styles
+    assert ".inline-actions" in styles
+
+
 def test_ops_scripts_exclude_artifacts_and_support_reconcile() -> None:
     backup = read("deploy/ops/backup.sh")
     restore = read("deploy/ops/restore.sh")

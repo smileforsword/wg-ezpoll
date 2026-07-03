@@ -319,6 +319,10 @@ class AdminUserResponse(BaseModel):
     device_count: int
 
 
+class UpdateAdminUserRequest(BaseModel):
+    approved_device_limit: int | None = Field(default=None, ge=0, le=10)
+
+
 class AuditLogResponse(BaseModel):
     id: str
     actor_user_id: str | None
@@ -1083,6 +1087,41 @@ def create_app(
     ):
         users = db.scalars(select(User).order_by(User.created_at.desc())).all()
         return [_admin_user_response(db, user) for user in users]
+
+    @api.patch("/api/admin/users/{user_id}", response_model=AdminUserResponse, tags=["admin"])
+    def update_user(
+        user_id: str,
+        payload: UpdateAdminUserRequest,
+        request: Request,
+        actor: Actor = Depends(require_admin_actor_with_csrf),
+        db: OrmSession = Depends(get_db),
+    ):
+        if actor.role != Role.ADMIN:
+            raise AuthorizationError("Only admin can manage users")
+        user = db.get(User, user_id)
+        if user is None:
+            raise NotFoundError("User not found")
+
+        before_json = {"approved_device_limit": user.approved_device_limit}
+        if payload.approved_device_limit is not None:
+            user.approved_device_limit = payload.approved_device_limit
+        db.flush()
+        api.state.audit_module.record(
+            db,
+            AuditEvent(
+                actor_user_id=actor.user_id,
+                actor_type="user",
+                action="user.updated",
+                target_type="user",
+                target_id=user.id,
+                before_json=before_json,
+                after_json={"approved_device_limit": user.approved_device_limit},
+                ip_address=_request_ip(request),
+                user_agent=request.headers.get("user-agent"),
+            ),
+        )
+        db.commit()
+        return _admin_user_response(db, user)
 
     @api.get("/api/admin/audit-logs", response_model=list[AuditLogResponse], tags=["admin"])
     def list_audit_logs(

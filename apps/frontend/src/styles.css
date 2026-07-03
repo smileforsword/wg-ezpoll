@@ -325,6 +325,10 @@ pre {
   grid-template-columns: minmax(0, 1fr) auto;
 }
 
+.user-row {
+  grid-template-columns: minmax(0, 1fr) auto minmax(180px, 220px);
+}
+
 .data-row > div,
 .device-row > div {
   min-width: 0;
@@ -345,6 +349,7 @@ pre {
 }
 
 .device-actions,
+.inline-actions,
 .badges,
 .audit-meta {
   display: flex;
@@ -355,6 +360,24 @@ pre {
 }
 
 .device-actions button {
+  min-width: 58px;
+  padding: 0 10px;
+}
+
+.inline-actions label {
+  display: grid;
+  gap: 4px;
+  min-width: 96px;
+  color: #65768a;
+  font-size: 0.78rem;
+}
+
+.inline-actions input {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.inline-actions button {
   min-width: 58px;
   padding: 0 10px;
 }
@@ -481,6 +504,7 @@ legend {
   }
 
   .device-actions,
+  .inline-actions,
   .badges,
   .audit-meta {
     justify-content: flex-start;

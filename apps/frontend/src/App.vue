@@ -148,6 +148,7 @@ const activeApplicationId = ref('')
 const applicationDetail = ref<ApplicationDetail | null>(null)
 const accessGroups = ref<AccessGroup[]>([])
 const users = ref<AdminUser[]>([])
+const userLimitDrafts = reactive<Record<string, number>>({})
 const devices = ref<PortalDevice[]>([])
 const adminDevices = ref<AdminDevice[]>([])
 const auditLogs = ref<AuditLog[]>([])
@@ -391,6 +392,9 @@ async function loadAdminSection(section = adminSection.value) {
   }
   if (section === 'users') {
     users.value = await api<AdminUser[]>('/api/admin/users')
+    for (const user of users.value) {
+      userLimitDrafts[user.id] = user.approved_device_limit
+    }
   }
   if (section === 'devices') {
     adminDevices.value = await api<AdminDevice[]>('/api/admin/devices')
@@ -410,6 +414,21 @@ async function openAdmin(section: AdminSection = 'approvals') {
   view.value = 'admin'
   await withBusy(async () => {
     await loadAdminSection(section)
+  })
+}
+
+async function updateUserDeviceLimit(user: AdminUser) {
+  await withBusy(async () => {
+    const updated = await api<AdminUser>(`/api/admin/users/${user.id}`, {
+      method: 'PATCH',
+      headers: { 'x-csrf-token': csrfToken.value },
+      body: JSON.stringify({
+        approved_device_limit: userLimitDrafts[user.id] ?? user.approved_device_limit,
+      }),
+    })
+    users.value = users.value.map((item) => item.id === updated.id ? updated : item)
+    userLimitDrafts[updated.id] = updated.approved_device_limit
+    setNotice('用户设备额度已更新')
   })
 }
 
@@ -1006,7 +1025,7 @@ onMounted(() => {
         <article
           v-for="user in users"
           :key="user.id"
-          class="data-row"
+          class="data-row user-row"
         >
           <div>
             <strong>{{ user.display_name }}</strong>
@@ -1016,6 +1035,20 @@ onMounted(() => {
             <span>{{ user.role }}</span>
             <span>{{ user.status }}</span>
             <span>{{ user.device_count }}/{{ user.approved_device_limit }}</span>
+          </div>
+          <div class="inline-actions">
+            <label>设备额度<input
+              v-model.number="userLimitDrafts[user.id]"
+              type="number"
+              min="0"
+              max="10"
+            ></label>
+            <button
+              :disabled="busy || me?.role !== 'admin'"
+              @click="updateUserDeviceLimit(user)"
+            >
+              保存
+            </button>
           </div>
         </article>
       </section>

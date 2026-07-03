@@ -79,6 +79,49 @@ def test_admin_console_lists_users_and_audit_logs(session_factory: sessionmaker[
     assert any(row["action"] == "console.test" for row in audit_logs.json())
 
 
+def test_admin_can_update_user_device_limit(session_factory: sessionmaker[OrmSession]) -> None:
+    app = create_app(AppSettings(environment="test", session_cookie_secure=False), session_factory=session_factory)
+    client = TestClient(app)
+    create_user(session_factory, email="admin@example.com", role=Role.ADMIN)
+    user_id = create_user(session_factory, email="user@example.com", role=Role.USER)
+    csrf = login(client, email="admin@example.com")
+
+    response = client.patch(
+        f"/api/admin/users/{user_id}",
+        headers={"x-csrf-token": csrf},
+        json={"approved_device_limit": 3},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == user_id
+    assert body["approved_device_limit"] == 3
+
+    with session_factory() as db:
+        user = db.get(User, user_id)
+        assert user is not None
+        assert user.approved_device_limit == 3
+        audit = db.scalar(select(AuditLog).where(AuditLog.action == "user.updated"))
+        assert audit is not None
+
+
+def test_approver_cannot_update_user_device_limit(session_factory: sessionmaker[OrmSession]) -> None:
+    app = create_app(AppSettings(environment="test", session_cookie_secure=False), session_factory=session_factory)
+    client = TestClient(app)
+    create_user(session_factory, email="approver@example.com", role=Role.APPROVER)
+    user_id = create_user(session_factory, email="user@example.com", role=Role.USER)
+    csrf = login(client, email="approver@example.com")
+
+    response = client.patch(
+        f"/api/admin/users/{user_id}",
+        headers={"x-csrf-token": csrf},
+        json={"approved_device_limit": 3},
+    )
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "authorization_denied"
+
+
 def test_admin_can_create_access_group_with_routes(session_factory: sessionmaker[OrmSession]) -> None:
     app = create_app(AppSettings(environment="test", session_cookie_secure=False), session_factory=session_factory)
     client = TestClient(app)
