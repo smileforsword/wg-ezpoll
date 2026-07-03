@@ -209,13 +209,14 @@ const pendingApplications = computed(() =>
 const canUseAdmin = computed(() => me.value?.role === 'admin' || me.value?.role === 'approver')
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const { headers: optionHeaders, ...fetchOptions } = options
   const response = await fetch(path, {
+    ...fetchOptions,
     credentials: 'include',
     headers: {
       'content-type': 'application/json',
-      ...(options.headers ?? {}),
+      ...(optionHeaders ?? {}),
     },
-    ...options,
   })
   const body = await response.json().catch(() => null)
   if (!response.ok) {

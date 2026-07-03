@@ -128,6 +128,16 @@ def test_frontend_accepts_path_routes_for_nginx_spa_fallback() -> None:
     assert "viewFromRouteName(hash)" in app
 
 
+def test_frontend_api_preserves_json_content_type_with_custom_headers() -> None:
+    app = read("apps/frontend/src/App.vue")
+
+    assert "const { headers: optionHeaders, ...fetchOptions } = options" in app
+    assert "...fetchOptions" in app
+    assert "'content-type': 'application/json'" in app
+    assert "...(optionHeaders ?? {})" in app
+    assert "...options," not in app
+
+
 def test_ops_scripts_exclude_artifacts_and_support_reconcile() -> None:
     backup = read("deploy/ops/backup.sh")
     restore = read("deploy/ops/restore.sh")
